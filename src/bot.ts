@@ -42,7 +42,10 @@ export function createBot(token: string): Client {
     if (!allowedGuilds.has(message.guild.id)) return;
 
     const isMentioned = message.mentions.has(client.user?.id ?? "");
-    if (!isMentioned) return;
+    const isReplyToGork = message.reference?.messageId
+      ? (await message.channel.messages.fetch(message.reference.messageId).catch(() => null))?.author.id === client.user?.id
+      : false;
+    if (!isMentioned && !isReplyToGork) return;
 
     // Remove @gork mention, replace other mentions with @username
     const content = message.content
