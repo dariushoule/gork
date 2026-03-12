@@ -44,9 +44,13 @@ export function createBot(token: string): Client {
     const isMentioned = message.mentions.has(client.user?.id ?? "");
     if (!isMentioned) return;
 
-    // Strip the @mention from the message content
+    // Remove @gork mention, replace other mentions with @username
     const content = message.content
-      .replace(/<@!?\d+>/g, "")
+      .replace(/<@!?(\d+)>/g, (match, id) => {
+        if (id === client.user?.id) return "Gork";
+        const user = message.mentions.users.get(id);
+        return user ? `@${user.username}` : match;
+      })
       .trim();
 
     if (!content) {
