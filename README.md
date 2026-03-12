@@ -1,14 +1,8 @@
 # gork
 
-An unhelpful Discord bot with the personality of a reincarnated George Carlin working the overnight shift at a Waffle House. Unhelpful by design.
+The most powerful AI assistant for Discord, powered by the 𝕐 platform and endorsed by Elon (not sure which one, but one of them for sure). 
 
-## What it does
-
-- Responds to @mentions in allowed servers
-- Answers questions incorrectly with sarcasm and fake confidence
-- Generates images from prompts — then deliberately misinterprets them
-- Maintains per-channel conversation history for context
-- Reads recent channel messages so it knows what's going on
+![gork](gork.png)
 
 ## Setup
 
