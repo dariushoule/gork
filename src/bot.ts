@@ -103,8 +103,7 @@ export function createBot(token: string): Client {
         const buffer = Buffer.from(await res.arrayBuffer());
         const attachment = new AttachmentBuilder(buffer, { name: "gork.png" });
 
-        const snarkyReply = await respond(message.channelId, `You just looked at the image you generated for "${content}". React to what you see in it. Stay in character. Do not mention generating, AI, or anything meta — just react as if you're looking at it right now. Just pretend you can see it with no meta-commentary.`);
-        await message.reply({ content: snarkyReply, files: [attachment] });
+        await message.reply({ files: [attachment] });
         console.log(`${tag} image reply sent`);
       } else {
         console.log(`${tag} generating response...`);
