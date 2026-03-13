@@ -41,7 +41,7 @@ export function createBot(token: string): Client {
     if (!message.guild) return;
     if (!allowedGuilds.has(message.guild.id)) return;
 
-    const isMentioned = message.mentions.has(client.user?.id ?? "");
+    const isMentioned = message.mentions.users.has(client.user?.id ?? "");
     const isReplyToGork = message.reference?.messageId
       ? (await message.channel.messages.fetch(message.reference.messageId).catch(() => null))?.author.id === client.user?.id
       : false;
