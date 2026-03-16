@@ -351,12 +351,22 @@ export async function processTurn(
     ? ` | ${updatedStatusEffects.join(", ")}`
     : "";
   await thread.send(result.narrative);
-  await thread.send(`${message.author} — ❤️ **${playerHpAfter} HP**${statusLine}`);
+
+  const summaryLines = [`${message.author} — ❤️ **${playerHpAfter} HP**${statusLine}`];
+  for (const fx of result.allyEffects) {
+    if (fx.hpDelta === 0) continue;
+    const ally = participantsByName.get(fx.playerName);
+    if (!ally) continue;
+    const allyHpAfter = Math.min(100, Math.max(1, ally.hp + fx.hpDelta));
+    const delta = fx.hpDelta > 0 ? `+${fx.hpDelta}` : String(fx.hpDelta);
+    summaryLines.push(`**${fx.playerName}** — ❤️ **${allyHpAfter} HP** (${delta})`);
+  }
+  await thread.send(summaryLines.join("\n"));
 
   // 10. Handle loot and next monster announcement if monster was defeated
   if (monsterDefeated) {
     console.log(`${tag} monster defeated: ${monster.name}`);
-    await handleMonsterDeath(db, thread, monster, campaign.id, participants.map((p) => p.id));
+    await handleMonsterDeath(db, thread, monster, participants);
     const nextActive = getActiveMonster(db, campaign.id);
     if (nextActive) {
       await thread.send(`⚔️ Next up: **${nextActive.name}** (${nextActive.tier})`);
@@ -388,8 +398,7 @@ async function handleMonsterDeath(
   db: DB,
   thread: ThreadChannel,
   monster: Monster,
-  campaignId: number,
-  participantIds: number[]
+  participants: ReturnType<typeof getCampaignParticipants>
 ): Promise<void> {
   const counts = getLootCounts(monster.tier);
   const totalItems = counts.mundane + counts.special + counts.exotic;
@@ -408,9 +417,8 @@ async function handleMonsterDeath(
     return;
   }
   const lootDrops = insertLoot(db, monster.id, generatedLoot);
-  const awards = awardLoot(db, lootDrops, participantIds);
+  const awards = awardLoot(db, lootDrops, participants.map((p) => p.id));
 
-  const participants = getCampaignParticipants(db, campaignId);
   const lootLines: string[] = [`💀 **${monster.name}** has been defeated! Loot drops:\n`];
 
   for (const p of participants) {
