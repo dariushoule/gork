@@ -366,7 +366,7 @@ export async function generateCampaign(
 This campaign's random seeds — incorporate all of them:
 ${seeds}
 
-Generate a new campaign. Include exactly the monsters in this order: normal monsters first (8-13 of them), then 3 minibosses mixed in naturally, then 1 boss as the final entry. The monsters array should be ordered as they will be encountered — boss last.
+Generate a new campaign. Include exactly 5 monsters in this order: 3 normal monsters, then 1 miniboss, then 1 boss. The monsters array must be ordered exactly as they will be encountered — boss last.
 
 Monster naming format: "[Name] the [Adjective] [Type]" — more elaborate for minibosses and bosses.
 Examples: "Gormuck the Strange Ork", "Tinkle Spork the Effeminate Space Ranger", "Grand Vizier Blortax the Infinitely Cursed Space Tyrant"
