@@ -21,14 +21,9 @@ export function awardLoot(
   if (participantIds.length === 0 || lootDrops.length === 0) return new Map();
 
   const awards = new Map<number, LootDrop[]>();
-  const shuffledRecipients = sample(
-    [...Array(lootDrops.length)].map((_, i) => participantIds[i % participantIds.length]!),
-    lootDrops.length
-  );
-
   for (let i = 0; i < lootDrops.length; i++) {
     const drop = lootDrops[i]!;
-    const recipientId = shuffledRecipients[i]!;
+    const recipientId = sample(participantIds, 1)[0]!;
 
     db.prepare("UPDATE loot SET awarded_to = ? WHERE id = ?").run(recipientId, drop.id);
     db.prepare("INSERT INTO inventory (player_id, name, tier, acquired_at) VALUES (?, ?, ?, ?)")

@@ -233,6 +233,7 @@ export async function processTurn(
     const recoveryHp = rollDice(60, 100);
     db.transaction(() => {
       clearIncapacitation(db, player.id);
+      clearAllStatusEffects(db, player.id);
       applyHpDelta(db, player.id, recoveryHp - player.hp);
     })();
     console.log(`${tag} incapacitation expired — HP restored to ${recoveryHp}`);
