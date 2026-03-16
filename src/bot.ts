@@ -1,8 +1,12 @@
-import { AttachmentBuilder, Client, Events, GatewayIntentBits } from "discord.js";
+import { AttachmentBuilder, Client, Events, GatewayIntentBits, ChannelType } from "discord.js";
+import type { TextChannel } from "discord.js";
 import { respond, clearHistory, mangleImagePrompt } from "./gork.js";
 import { generateImage } from "./image.js";
+import { handleRpgMessage } from "./rpg/router.js";
+import { getActiveCampaign, startNewCampaign } from "./rpg/campaign.js";
+import type { DB } from "./rpg/db.js";
 
-export function createBot(token: string): Client {
+export function createBot(token: string, db: DB, planetGorkChannelId: string): Client {
   const client = new Client({
     intents: [
       GatewayIntentBits.Guilds,
@@ -19,7 +23,7 @@ export function createBot(token: string): Client {
     (process.env["ALLOWED_GUILD_IDS"] ?? "").split(",").filter(Boolean)
   );
 
-  // Image rate limit: max 5 images per user per 10 minutes
+  // Image rate limit: max 5 images per user per 1 minute
   const imageRateLimit = new Map<string, number[]>();
   const IMAGE_LIMIT = 5;
   const IMAGE_WINDOW_MS = 60 * 1000;
@@ -42,17 +46,57 @@ export function createBot(token: string): Client {
     if (!allowedGuilds.has(message.guild.id)) return;
 
     if (message.mentions.everyone) return;
+
+    // !start in #planet-gork — no @mention required
+    const strippedContent = message.content.replace(/<@[!&]?\d+>/g, "").trim().toLowerCase();
+    if (message.channelId === planetGorkChannelId && strippedContent === "!start") {
+      await message.delete().catch(() => null);
+      const existing = getActiveCampaign(db);
+      if (existing?.thread_id) {
+        const thread = await client.channels.fetch(existing.thread_id).catch(() => null);
+        await message.channel.send(
+          `A campaign is already underway! Head to ${thread ?? `<#${existing.thread_id}>`} to join the fight.`
+        );
+        return;
+      }
+      if (message.channel.type === ChannelType.GuildText) {
+        await message.channel.send("📯 Summoning the Gamemaster...");
+        try {
+          await startNewCampaign(db, message.channel as TextChannel);
+        } catch (err) {
+          console.error("[RPG] startNewCampaign failed:", err);
+          await message.channel.send("The Gamemaster is unavailable. Try `!start` again in a moment.");
+        }
+      }
+      return;
+    }
+
+    // RPG: campaign threads — route all messages (commands work without @mention)
+    const isInCampaignThread =
+      message.channel.isThread() &&
+      message.channel.parentId === planetGorkChannelId;
+
+    if (isInCampaignThread) {
+      const isMentionedInThread = message.mentions.has(client.user?.id ?? "");
+      const isReplyToGorkInThread = message.reference?.messageId
+        ? (await message.channel.messages.fetch(message.reference.messageId).catch(() => null))?.author.id === client.user?.id
+        : false;
+      await handleRpgMessage(db, message, isMentionedInThread || isReplyToGorkInThread);
+      return;
+    }
+
     const isMentioned = message.mentions.has(client.user?.id ?? "");
     const isReplyToGork = message.reference?.messageId
       ? (await message.channel.messages.fetch(message.reference.messageId).catch(() => null))?.author.id === client.user?.id
       : false;
+
     if (!isMentioned && !isReplyToGork) return;
 
-    // Remove @gork mention, replace other mentions with @username
+    // Existing Gork chatbot for all other channels
     const content = message.content
       .replace(/<@!?(\d+)>/g, (match, id) => {
         if (id === client.user?.id) return "Gork";
-        const user = message.mentions.users.get(id);
+        const user = message.mentions.users.get(id as string);
         return user ? `@${user.username}` : match;
       })
       .trim();
@@ -62,7 +106,6 @@ export function createBot(token: string): Client {
       return;
     }
 
-    // !clear resets the conversation for this channel
     if (content.toLowerCase() === "!clear") {
       clearHistory(message.channelId);
       await message.reply("Wiped the slate. Like it never happened.");
