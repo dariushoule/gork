@@ -42,8 +42,8 @@ export async function handleHelpCommand(message: Message): Promise<void> {
   }
 }
 
-export async function handleMeCommand(db: DB, message: Message): Promise<void> {
-  const player = upsertPlayer(db, message.author.id, message.author.displayName);
+export async function handleMeCommand(db: DB, message: Message, channelId: string): Promise<void> {
+  const player = upsertPlayer(db, message.author.id, message.author.displayName, channelId);
   const inventory = getInventory(db, player.id);
   const statusEffects = getStatusEffects(db, player.id);
 

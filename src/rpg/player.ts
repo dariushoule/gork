@@ -6,6 +6,7 @@ function rowToPlayer(row: Record<string, unknown>): Player {
   return {
     id: row["id"] as number,
     discord_id: row["discord_id"] as string,
+    channel_id: row["channel_id"] as string,
     display_name: row["display_name"] as string,
     hp: row["hp"] as number,
     incapacitated_until: (row["incapacitated_until"] as number | null) ?? null,
@@ -14,14 +15,14 @@ function rowToPlayer(row: Record<string, unknown>): Player {
   };
 }
 
-export function upsertPlayer(db: DB, discordId: string, displayName: string): Player {
+export function upsertPlayer(db: DB, discordId: string, displayName: string, channelId: string): Player {
   db.prepare(`
-    INSERT INTO players (discord_id, display_name, hp, created_at)
-    VALUES (?, ?, 100, ?)
-    ON CONFLICT(discord_id) DO UPDATE SET display_name = excluded.display_name
-  `).run(discordId, displayName, Date.now());
+    INSERT INTO players (discord_id, channel_id, display_name, hp, created_at)
+    VALUES (?, ?, ?, 100, ?)
+    ON CONFLICT(discord_id, channel_id) DO UPDATE SET display_name = excluded.display_name
+  `).run(discordId, channelId, displayName, Date.now());
 
-  const row = db.prepare("SELECT * FROM players WHERE discord_id = ?").get(discordId);
+  const row = db.prepare("SELECT * FROM players WHERE discord_id = ? AND channel_id = ?").get(discordId, channelId);
   return rowToPlayer(row as Record<string, unknown>);
 }
 

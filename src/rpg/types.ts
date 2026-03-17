@@ -4,6 +4,7 @@ export type CampaignStatus = "active" | "completed";
 
 export interface Campaign {
   id: number;
+  channel_id: string;
   title: string;
   description: string;
   thread_id: string | null;
@@ -26,6 +27,7 @@ export interface Monster {
 export interface Player {
   id: number;
   discord_id: string;
+  channel_id: string;
   display_name: string;
   hp: number;
   incapacitated_until: number | null;

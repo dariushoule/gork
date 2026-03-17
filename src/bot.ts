@@ -3,10 +3,10 @@ import type { TextChannel } from "discord.js";
 import { respond, clearHistory, mangleImagePrompt } from "./gork.js";
 import { generateImage } from "./image.js";
 import { handleRpgMessage } from "./rpg/router.js";
-import { getActiveCampaign, startNewCampaign } from "./rpg/campaign.js";
+import { getActiveCampaignForChannel, startNewCampaign } from "./rpg/campaign.js";
 import type { DB } from "./rpg/db.js";
 
-export function createBot(token: string, db: DB, planetGorkChannelId: string): Client {
+export function createBot(token: string, db: DB, planetGorkChannelIds: Set<string>): Client {
   const client = new Client({
     intents: [
       GatewayIntentBits.Guilds,
@@ -49,9 +49,9 @@ export function createBot(token: string, db: DB, planetGorkChannelId: string): C
 
     // !start in #planet-gork — no @mention required
     const strippedContent = message.content.replace(/<@[!&]?\d+>/g, "").trim().toLowerCase();
-    if (message.channelId === planetGorkChannelId && strippedContent === "!start") {
+    if (planetGorkChannelIds.has(message.channelId) && strippedContent === "!start") {
       await message.delete().catch(() => null);
-      const existing = getActiveCampaign(db);
+      const existing = getActiveCampaignForChannel(db, message.channelId);
       if (existing?.thread_id) {
         const thread = await client.channels.fetch(existing.thread_id).catch(() => null);
         await message.channel.send(
@@ -74,7 +74,8 @@ export function createBot(token: string, db: DB, planetGorkChannelId: string): C
     // RPG: campaign threads — route all messages (commands work without @mention)
     const isInCampaignThread =
       message.channel.isThread() &&
-      message.channel.parentId === planetGorkChannelId;
+      message.channel.parentId !== null &&
+      planetGorkChannelIds.has(message.channel.parentId);
 
     if (isInCampaignThread) {
       const isMentionedInThread = message.mentions.has(client.user?.id ?? "");

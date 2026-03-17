@@ -9,6 +9,7 @@ export function initDb(path: string): DB {
   db.exec(`
     CREATE TABLE IF NOT EXISTS campaigns (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      channel_id    TEXT    NOT NULL,
       title         TEXT    NOT NULL,
       description   TEXT    NOT NULL,
       thread_id     TEXT    UNIQUE,
@@ -30,12 +31,14 @@ export function initDb(path: string): DB {
 
     CREATE TABLE IF NOT EXISTS players (
       id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-      discord_id            TEXT    NOT NULL UNIQUE,
+      discord_id            TEXT    NOT NULL,
+      channel_id            TEXT    NOT NULL,
       display_name          TEXT    NOT NULL,
       hp                    INTEGER NOT NULL DEFAULT 100,
       incapacitated_until   INTEGER,
       incapacitation_reason TEXT,
-      created_at            INTEGER NOT NULL
+      created_at            INTEGER NOT NULL,
+      UNIQUE(discord_id, channel_id)
     );
 
     CREATE TABLE IF NOT EXISTS inventory (

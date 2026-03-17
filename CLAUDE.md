@@ -1,7 +1,9 @@
 # Gork — Project Instructions
 
 Tales of Planet Gork: a Discord bot that runs a persistent text RPG with an AI gamemaster.
-One active campaign at a time, scoped to a single `#planet-gork` channel and its threads.
+One active campaign at a time per channel. Multiple `#planet-gork` channels across different servers
+are supported — each runs independently. Players are scoped per channel (same Discord user on two
+different servers has separate HP, inventory, and status effects).
 
 ## Stack
 
@@ -40,8 +42,8 @@ The system prompt in `gamemaster.ts` is the game's rulebook. Changes here affect
 DISCORD_TOKEN
 ANTHROPIC_API_KEY
 FAL_KEY
-ALLOWED_GUILD_IDS        # comma-separated
-PLANET_GORK_CHANNEL_ID   # the #planet-gork channel id
+ALLOWED_GUILD_IDS          # comma-separated guild IDs
+PLANET_GORK_CHANNEL_IDS    # comma-separated channel IDs (one per #planet-gork across servers)
 ```
 
 ## Dev workflow

@@ -2,11 +2,10 @@ import "dotenv/config";
 import { createBot } from "./bot.js";
 import { fetchPricing } from "./image.js";
 import { initDb } from "./rpg/db.js";
-import { getActiveCampaign } from "./rpg/campaign.js";
+import { getActiveCampaignForChannel } from "./rpg/campaign.js";
 
 const token = process.env["DISCORD_TOKEN"];
 const apiKey = process.env["ANTHROPIC_API_KEY"];
-const planetGorkChannelId = process.env["PLANET_GORK_CHANNEL_ID"];
 
 if (!token) {
   console.error("Missing DISCORD_TOKEN in environment");
@@ -28,8 +27,11 @@ if (!process.env["ALLOWED_GUILD_IDS"]) {
   process.exit(1);
 }
 
-if (!planetGorkChannelId) {
-  console.error("Missing PLANET_GORK_CHANNEL_ID in environment");
+const rawChannelIds = process.env["PLANET_GORK_CHANNEL_IDS"] ?? process.env["PLANET_GORK_CHANNEL_ID"] ?? "";
+const planetGorkChannelIds = new Set(rawChannelIds.split(",").map((s) => s.trim()).filter(Boolean));
+
+if (planetGorkChannelIds.size === 0) {
+  console.error("Missing PLANET_GORK_CHANNEL_IDS in environment (comma-separated channel IDs)");
   process.exit(1);
 }
 
@@ -40,11 +42,13 @@ fetchPricing().then((p) => {
 const db = initDb("gamestate.db");
 console.log("Database ready.");
 
-const activeCampaign = getActiveCampaign(db);
-if (activeCampaign) {
-  console.log(`[RPG] Active campaign: "${activeCampaign.title}" (thread: ${activeCampaign.thread_id ?? "none — may need !start"})`);
-} else {
-  console.log("[RPG] No active campaign. Use !start in #planet-gork to begin.");
+for (const channelId of planetGorkChannelIds) {
+  const activeCampaign = getActiveCampaignForChannel(db, channelId);
+  if (activeCampaign) {
+    console.log(`[RPG] <#${channelId}> active campaign: "${activeCampaign.title}" (thread: ${activeCampaign.thread_id ?? "none — may need !start"})`);
+  } else {
+    console.log(`[RPG] <#${channelId}> no active campaign. Use !start to begin.`);
+  }
 }
 
-createBot(token, db, planetGorkChannelId);
+createBot(token, db, planetGorkChannelIds);

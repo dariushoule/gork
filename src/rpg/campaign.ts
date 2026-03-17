@@ -35,8 +35,10 @@ import type { Message } from "discord.js";
 
 // ── Campaign DB helpers ────────────────────────────────────────────────────────
 
-export function getActiveCampaign(db: DB): Campaign | null {
-  const row = db.prepare("SELECT * FROM campaigns WHERE status = 'active' LIMIT 1").get();
+export function getActiveCampaignForChannel(db: DB, channelId: string): Campaign | null {
+  const row = db.prepare(
+    "SELECT * FROM campaigns WHERE channel_id = ? AND status = 'active' LIMIT 1"
+  ).get(channelId);
   return row ? rowToCampaign(row as Record<string, unknown>) : null;
 }
 
@@ -48,6 +50,7 @@ export function getCampaignByThreadId(db: DB, threadId: string): Campaign | null
 function rowToCampaign(row: Record<string, unknown>): Campaign {
   return {
     id: row["id"] as number,
+    channel_id: row["channel_id"] as string,
     title: row["title"] as string,
     description: row["description"] as string,
     thread_id: (row["thread_id"] as string | null) ?? null,
@@ -109,8 +112,8 @@ export async function startNewCampaign(db: DB, channel: TextChannel): Promise<vo
 
   const campaignId = db.transaction(() => {
     const row = db.prepare(`
-      INSERT INTO campaigns (title, description, created_at) VALUES (?, ?, ?)
-    `).run(generated.title, generated.description, Date.now());
+      INSERT INTO campaigns (channel_id, title, description, created_at) VALUES (?, ?, ?, ?)
+    `).run(channel.id, generated.title, generated.description, Date.now());
     const id = row.lastInsertRowid as number;
     insertMonsters(db, id, generated.monsters);
     return id;
@@ -214,7 +217,7 @@ export async function processTurn(
   console.log(`${tag} action: "${content}"`);
 
   // 1. Upsert player and register as participant
-  let player = upsertPlayer(db, message.author.id, message.author.displayName);
+  let player = upsertPlayer(db, message.author.id, message.author.displayName, campaign.channel_id);
   addCampaignParticipant(db, campaign.id, player.id);
 
   // 2. Check incapacitation

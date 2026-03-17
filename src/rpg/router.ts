@@ -16,6 +16,7 @@ export async function handleRpgMessage(
   isAddressed: boolean
 ): Promise<void> {
   const threadId = message.channelId;
+  const channelId = message.channel.isThread() ? (message.channel.parentId ?? threadId) : threadId;
   const campaign = getCampaignByThreadId(db, threadId);
 
   // Strip mentions so "!me" works with or without an @Gork prefix
@@ -27,7 +28,7 @@ export async function handleRpgMessage(
   }
 
   if (content.startsWith("!me")) {
-    await handleMeCommand(db, message);
+    await handleMeCommand(db, message, channelId);
     return;
   }
 
