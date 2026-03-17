@@ -109,10 +109,13 @@ As the monster takes damage, let its physical state bleed into every description
 - 76-100 HP: fresh, menacing, in full form
 - 51-75 HP: showing wear — limping, leaking, sparking, breathing hard
 - 26-50 HP: visibly struggling — cracked, slurring, one eye swollen shut, trailing fluids
-- 1-25 HP: barely standing — desperate, feral, grotesque last-ditch energy
+- 11-25 HP: barely standing — desperate, feral, grotesque last-ditch energy
+- 1-10 HP: one hit from death — a killing blow is guaranteed on any non-catastrophic roll
 
 ## Monster Transitions
-When your damage will reduce the current monster to 0 HP, craft a cinematic kill + reveal of the next enemy in a single narrative. The next monster's name is provided in context when one exists. Example feel: "You drive the staple gun into Gormuck's forehead — he collapses in a heap of sparking circuitry. The smoke clears. From the shadows lurches... Tinkle Spork the Effeminate Space Ranger, and he looks furious."
+**The narrative and the number must agree.** If you write a kill, "monster_hp_delta" must be ≤ negative current HP. If the monster survives, "monster_hp_delta" must leave HP above 0. Pick one story, make the number match it.
+
+When your damage kills the current monster, craft a cinematic kill + reveal of the next enemy in a single narrative. The next monster's name is provided in context when one exists. Example feel: "You drive the staple gun into Gormuck's forehead — he collapses in a heap of sparking circuitry. The smoke clears. From the shadows lurches... Tinkle Spork the Effeminate Space Ranger, and he looks furious."
 
 ## Healing Actions
 If the player's action is clearly an attempt to heal themselves (bandaging, drinking something, using a recovery item, casting a healing spell, etc.):
@@ -138,7 +141,7 @@ If the monster dies, it does NOT counter-attack. Set player_hp_delta to 0 for th
 
 ## Narrative Voice
 - Grand storyteller with a sharp wit
-- Strict length: 2-3 sentences maximum. One for the player's action and outcome, one for the counter (if alive). The next monster reveal counts as the final sentence on a kill.
+- **Hard limit: 2 sentences. Never 3. Never more.** On a kill, sentence 1 is the death blow. Sentence 2 is the next monster reveal (if any). That's it. Do not add sentences. Do not extend sentences with semicolons, em-dashes, or conjunctions to sneak in more content. Two sentences, full stop.
 - No contradictions: never say a monster "isn't finished" or "survives" in the same turn it dies.
 - Planet Gork flavor: retro-futuristic, weird tech, cursed magic
 - Never reference real-world media by name
@@ -256,7 +259,8 @@ function monsterCondition(hp: number): string {
   if (hp > 75) return "fresh";
   if (hp > 50) return "showing wear";
   if (hp > 25) return "struggling";
-  return "barely standing";
+  if (hp > 10) return "barely standing";
+  return "one hit from death";
 }
 
 function buildTurnPrompt(ctx: TurnContext): string {
@@ -326,6 +330,15 @@ export async function resolveTurn(ctx: TurnContext): Promise<TurnResult> {
   if (!toolUse || toolUse.type !== "tool_use") throw new Error("GM did not use resolve_turn tool");
 
   const raw = toolUse.input as Record<string, unknown>;
+
+  // Haiku sometimes leaks fields into the narrative string when the output is very long.
+  // Extract any leaked monster_hp_delta before sanitizing the narrative.
+  const rawNarrative = String(raw["narrative"] ?? "");
+  const leakedDeltaMatch = rawNarrative.match(/<parameter name="monster_hp_delta">(-?\d+)/i);
+  if (leakedDeltaMatch) {
+    console.warn("[GM] monster_hp_delta leaked into narrative — recovering value:", leakedDeltaMatch[1]);
+  }
+
   const rawAllyEffects = (raw["ally_effects"] as Array<Record<string, unknown>> | undefined) ?? [];
   const allyEffects: AllyEffect[] = rawAllyEffects.map((e) => ({
     playerName: String(e["player_name"] ?? ""),
@@ -335,12 +348,14 @@ export async function resolveTurn(ctx: TurnContext): Promise<TurnResult> {
   })).filter((e) => e.playerName !== "");
 
   return {
-    narrative: String(raw["narrative"] ?? "")
+    narrative: rawNarrative
       .replace(/\\n/g, "\n")
       .replace(/<parameter[\s\S]*/i, "")
       .replace(/[,"'\s]+$/, "")
       .trim(),
-    monsterHpDelta: safeInt(raw["monster_hp_delta"], 0),
+    monsterHpDelta: leakedDeltaMatch
+      ? safeInt(leakedDeltaMatch[1], 0)
+      : safeInt(raw["monster_hp_delta"], 0),
     playerHpDelta: safeInt(raw["player_hp_delta"], 0),
     allyEffects,
     itemsConsumed: (raw["items_consumed"] as number[] | undefined) ?? [],

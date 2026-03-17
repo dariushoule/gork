@@ -351,7 +351,10 @@ export async function processTurn(
   const statusLine = updatedStatusEffects.length > 0
     ? ` | ${updatedStatusEffects.join(", ")}`
     : "";
-  await thread.send(result.narrative);
+  const narrativeText = result.narrative.length > 1900
+    ? result.narrative.slice(0, 1900) + "…"
+    : result.narrative;
+  await thread.send(narrativeText);
 
   const summaryLines = [`${message.author} — ❤️ **${playerHpAfter} HP**${statusLine}`];
   for (const fx of result.allyEffects) {
