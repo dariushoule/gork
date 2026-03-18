@@ -4,6 +4,7 @@ import { respond, clearHistory, mangleImagePrompt } from "./gork.js";
 import { generateImage } from "./image.js";
 import { handleRpgMessage } from "./rpg/router.js";
 import { getActiveCampaignForChannel, startNewCampaign } from "./rpg/campaign.js";
+import { handleTheLatest } from "./latest.js";
 import type { DB } from "./rpg/db.js";
 
 export function createBot(token: string, db: DB, planetGorkChannelIds: Set<string>): Client {
@@ -47,8 +48,15 @@ export function createBot(token: string, db: DB, planetGorkChannelIds: Set<strin
 
     if (message.mentions.everyone) return;
 
-    // !start in #planet-gork — no @mention required
     const strippedContent = message.content.replace(/<@[!&]?\d+>/g, "").trim().toLowerCase();
+
+    // !thelatest — works in any channel, no @mention required
+    if (strippedContent === "!thelatest") {
+      await handleTheLatest(message);
+      return;
+    }
+
+    // !start in #planet-gork — no @mention required
     if (planetGorkChannelIds.has(message.channelId) && strippedContent === "!start") {
       await message.delete().catch(() => null);
       const existing = getActiveCampaignForChannel(db, message.channelId);
