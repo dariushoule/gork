@@ -5,6 +5,8 @@ const client = new Anthropic();
 
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 const MAX_MESSAGES = 600;
+const MAX_INPUT_CHARS = 40_000; // ~10k tokens — keeps Haiku fast
+const TYPING_INTERVAL_MS = 8_000; // Discord typing expires at 10s
 
 interface Topic {
   topic: string;
@@ -46,7 +48,16 @@ export async function handleTheLatest(message: Message): Promise<void> {
   if (!("messages" in channel)) return;
 
   await channel.sendTyping();
+  const typingInterval = setInterval(() => { void channel.sendTyping(); }, TYPING_INTERVAL_MS);
 
+  try {
+    await doSummarize(message, channel);
+  } finally {
+    clearInterval(typingInterval);
+  }
+}
+
+async function doSummarize(message: Message, channel: GuildTextBasedChannel): Promise<void> {
   const cutoff = Date.now() - THREE_DAYS_MS;
   const collected: Array<{ id: string; author: string; content: string }> = [];
   let before: string | undefined;
@@ -62,7 +73,7 @@ export async function handleTheLatest(message: Message): Promise<void> {
       if (msg.author.bot) continue;
       const text = msg.content.trim();
       if (!text) continue;
-      collected.push({ id: msg.id, author: msg.author.username, content: text.slice(0, 300) });
+      collected.push({ id: msg.id, author: msg.author.username, content: text.slice(0, 150) });
     }
 
     before = batch.last()?.id;
@@ -77,11 +88,23 @@ export async function handleTheLatest(message: Message): Promise<void> {
   // Chronological order for the prompt
   collected.reverse();
 
-  const formatted = collected.map((m) => `[${m.id}] @${m.author}: ${m.content}`).join("\n");
+  // Build formatted input, capped at MAX_INPUT_CHARS (take the most recent if truncated)
+  const lines = collected.map((m) => `[${m.id}] @${m.author}: ${m.content}`);
+  let formatted = lines.join("\n");
+  if (formatted.length > MAX_INPUT_CHARS) {
+    // Drop oldest lines until it fits
+    while (formatted.length > MAX_INPUT_CHARS && lines.length > 0) lines.shift();
+    formatted = lines.join("\n");
+  }
 
   let topics: Topic[];
   try {
-    const response = await client.messages.create({
+    let timerId: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<never>((_, reject) => {
+      timerId = setTimeout(() => reject(new Error("thelatest timed out")), 60_000);
+    });
+
+    const apiCall = client.messages.create({
       model: "claude-haiku-4-5",
       max_tokens: 1024,
       tools: [SUMMARIZE_TOOL],
@@ -96,8 +119,10 @@ export async function handleTheLatest(message: Message): Promise<void> {
       ],
     });
 
+    const response = await Promise.race([apiCall, timeout]).finally(() => clearTimeout(timerId!));
+
     const toolUse = response.content.find((b) => b.type === "tool_use");
-    if (!toolUse || toolUse.type !== "tool_use") throw new Error("GM did not use summarize_topics tool");
+    if (!toolUse || toolUse.type !== "tool_use") throw new Error("did not use summarize_topics tool");
 
     const raw = toolUse.input as { topics?: Topic[] };
     topics = raw.topics ?? [];
@@ -112,12 +137,29 @@ export async function handleTheLatest(message: Message): Promise<void> {
     return;
   }
 
-  const guildId = message.guild.id;
-  const lines = ["**📰 The Latest — last 3 days**\n"];
-  for (const t of topics) {
+  const guildId = message.guild!.id;
+  const topicLines = topics.map((t) => {
     const link = `https://discord.com/channels/${guildId}/${channel.id}/${t.message_id}`;
-    lines.push(`**${t.topic}** — [jump](${link})\n${t.summary}`);
-  }
+    return `**${t.topic}** — [jump](${link})\n${t.summary}`;
+  });
 
-  await channel.send(lines.join("\n\n"));
+  // Split into messages that fit within Discord's 2000 char limit
+  const header = "**📰 The Latest — last 3 days**\n";
+  const chunks: string[] = [];
+  let current = header;
+
+  for (const line of topicLines) {
+    const candidate = current === header ? current + "\n" + line : current + "\n\n" + line;
+    if (candidate.length > 1900) {
+      chunks.push(current);
+      current = line;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) chunks.push(current);
+
+  for (const chunk of chunks) {
+    await channel.send(chunk);
+  }
 }
